@@ -1,0 +1,5 @@
+- hosts: geonames
+  remote_user: vagrant
+  roles:
+  - {role: ANXS.postgresql, sudo: yes}
+  - geonames

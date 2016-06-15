@@ -1,0 +1,25 @@
+# Basic settings
+postgresql_version: 9.3
+postgresql_encoding: 'UTF-8'
+postgresql_locale: 'en_US.UTF-8'
+
+postgresql_admin_user: "postgres"
+postgresql_default_auth_method: "trust"
+
+postgresql_cluster_name: "main"
+postgresql_cluster_reset: false
+
+postgresql_ext_install_postgis: yes
+postgresql_ext_install_contrib: yes
+
+# List of databases to be created (optional)
+# Note: for more flexibility with extensions use the postgresql_database_extensions setting.
+postgresql_databases:
+  - name: geonames
+    hstore: yes
+    uuid_ossp: yes
+    citext: yes
+    postgis: yes
+    plpgsql: yes
+    earthdistance: yes
+    cube: yes
