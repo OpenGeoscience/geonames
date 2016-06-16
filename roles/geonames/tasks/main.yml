@@ -8,7 +8,7 @@
 - name: copy script
   template:
     src: build_geonames.sh.j2
-    dest: "{{ ansible_user_dir }}"
+    dest: "{{ ansible_user_dir }}/build_geonames.sh"
     mode: 0755
 
 - name: import data

@@ -1,10 +1,4 @@
-allCountries.txt
-allCountries.zip
-alternateNames.txt
-alternateNames.zip
-countryInfo.txt
-iso-languagecodes.txt
-
+work
 # Created by https://www.gitignore.io/api/ansible,vagrant
 
 ### Ansible ###

@@ -44,8 +44,8 @@ DBHOST="127.0.0.1"
 DBPORT="5432"
 DBNAME="geonames"
 TZ="America/New_York" ; export TZ
-PGVERSION="9.3"
-PGISVERSION="2.1"
+PGVERSION="{{ postgresql_version }}"
+PGISVERSION="2.2"
 DBUSER="postgres"
 GEOROLE="georole"
 GEOUSER="geouser"
@@ -56,9 +56,11 @@ DEVPASSWORD="administrator"
 POSTGISPATH="/usr/share/postgresql/${PGVERSION}/contrib/postgis-${PGISVERSION}"
 FILES="allCountries.zip alternateNames.zip admin1CodesASCII.txt admin2Codes.txt countryInfo.txt featureCodes_en.txt timeZones.txt iso-languagecodes.txt"
 TABLES="admin1codes admin2codes alternatename continentcodes countryinfo featurecodes postalcodes geoname languagecodes timezones"
+PGARGS="-U $DBUSER -h $DBHOST -p $DBPORT"
+PSQL="psql $PGARGS"
 
 echo -e "+----CREATE ${DBNAME} DATABASE (step 1 of 8)----------+\n"
-psql -U $DBUSER -h $DBHOST -p $DBPORT <<EOT
+$PSQL -e <<EOT
 DROP DATABASE ${DBNAME}; 
 DROP ROLE IF EXISTS ${GEOROLE};
 DROP USER IF EXISTS ${GEOUSER};
@@ -66,12 +68,12 @@ DROP ROLE IF EXISTS ${DEVROLE};
 DROP USER IF EXISTS ${DEVUSER};
 EOT
 
-psql -U $DBUSER -h $DBHOST -p $DBPORT -c "CREATE DATABASE ${DBNAME} WITH TEMPLATE = template0 ENCODING = 'UTF8';" 
+$PSQL -e -c "CREATE DATABASE ${DBNAME} WITH TEMPLATE = template0 ENCODING = 'UTF8';" 
 #psql -c "CREATE DATABASE ${DBNAME} WITH TEMPLATE = template1 ENCODING = 'UTF8';" 
 
 echo -e "\n+-----CREATE TABLES and SEQUENCES (step 2 of 8)----------+\n"
 
-psql -U $DBUSER -h $DBHOST -p $DBPORT ${DBNAME} <<EOT
+$PSQL ${DBNAME} <<EOT
 DROP TABLE IF EXISTS geoname CASCADE;
 CREATE TABLE geoname (
     id SERIAL NOT NULL,
@@ -223,19 +225,10 @@ ALTER TABLE ONLY admin1codes ADD CONSTRAINT fk_geonameid FOREIGN KEY (geonameid)
 EOT
 
 # check if needed directories do already exsist
-echo -e "\n\nChecking to see if download directories (${WORKPATH}) exists."
-if [ -d "${WORKPATH}" ]; then
-    echo "${WORKPATH} exists..."
-    sleep 0
-else
-    echo "$WORKPATH and subdirectories will be created..."
-    mkdir -p ${WORKPATH}
-    mkdir -p ${WORKDIR}
-    mkdir -p ${POSTALCODEDIR}
-    echo "created ${WORKPATH}"
-    echo "created ${WORKDIR}"
-    echo "created ${POSTALCODEDIR}"
-fi
+echo "$WORKPATH and subdirectories will be created..."
+mkdir -p ${WORKPATH} || true
+mkdir -p ${WORKDIR} || true
+mkdir -p ${POSTALCODEDIR} || true
 echo
 echo -e "\n+----DOWNLOADING, UNARCHIVING and PREPARING GEONAMES RAW DATA (step 3 of 8)------+\n"
 
@@ -272,16 +265,16 @@ unzip -o ${POSTALCODES} US.txt
 
 echo -e "\n+----POPULATE TABLES (step 4 of 8)----------+\n"
 
-psql -e -U $DBUSER -h $DBHOST -p $DBPORT ${DBNAME} <<EOT
-copy geoname (geonameid,name,asciiname,alternatenames,latitude,longitude,fclass,fcode,country,cc2,admin1,admin2,admin3,admin4,population,elevation,gtopo30,timezone,moddate) from '${WORKPATH}/${TMPPATH}/allCountries.txt' null as '';
-copy postalcodes (countrycode,postalcode,placename,admin1name,admin1code,admin2name,admin2code,admin3name,admin3code,latitude,longitude,accuracy) from '${WORKPATH}/${POSTALCODEPATH}/US.txt' null as '';
-copy timezones (countrycode,timeZoneId,GMT_offset,DST_offset,raw_offset) from '${WORKPATH}/${TMPPATH}/timeZones.txt.tmp' null as '';
-copy featureCodes (code,name,description) from '${WORKPATH}/${TMPPATH}/featureCodes_en.txt' null as '';
-copy admin1codes (code,name,nameAscii,geonameid) from '${WORKPATH}/${TMPPATH}/admin1CodesASCII.txt' null as '';
-copy admin2codes (code,name,alternatename,geonameid) from '${WORKPATH}/${TMPPATH}/admin2Codes.txt' null as '';
-copy languagecodes (iso_639_3,iso_639_2,iso_639_1,language_name) from '${WORKPATH}/${TMPPATH}/iso-languagecodes.txt.tmp' null as '';
-copy countryInfo (country_code,iso3,iso_numeric,fips,country_name,capital,areainsqkm,population,continent,tld,currency_code,currency_name,phone,postal_code_fmt,postal_code_rgx,languages,geonameid,neighbors,equiv_fips_code) from '${WORKPATH}/${TMPPATH}/countryInfo.txt.tmp' null as '';
-copy alternatename (alternatenameid,geonameid,isoLanguage,alternateName,isPreferredName,isShortName,isColloquial,isHistoric) from '${WORKPATH}/${TMPPATH}/alternateNames.txt' null as '';
+$PSQL -e ${DBNAME} <<EOT
+\copy geoname (geonameid,name,asciiname,alternatenames,latitude,longitude,fclass,fcode,country,cc2,admin1,admin2,admin3,admin4,population,elevation,gtopo30,timezone,moddate) from '${WORKPATH}/${TMPPATH}/allCountries.txt' null as '';
+\copy postalcodes (countrycode,postalcode,placename,admin1name,admin1code,admin2name,admin2code,admin3name,admin3code,latitude,longitude,accuracy) from '${WORKPATH}/${POSTALCODEPATH}/US.txt' null as '';
+\copy timezones (countrycode,timeZoneId,GMT_offset,DST_offset,raw_offset) from '${WORKPATH}/${TMPPATH}/timeZones.txt.tmp' null as '';
+\copy featureCodes (code,name,description) from '${WORKPATH}/${TMPPATH}/featureCodes_en.txt' null as '';
+\copy admin1codes (code,name,nameAscii,geonameid) from '${WORKPATH}/${TMPPATH}/admin1CodesASCII.txt' null as '';
+\copy admin2codes (code,name,alternatename,geonameid) from '${WORKPATH}/${TMPPATH}/admin2Codes.txt' null as '';
+\copy languagecodes (iso_639_3,iso_639_2,iso_639_1,language_name) from '${WORKPATH}/${TMPPATH}/iso-languagecodes.txt.tmp' null as '';
+\copy countryInfo (country_code,iso3,iso_numeric,fips,country_name,capital,areainsqkm,population,continent,tld,currency_code,currency_name,phone,postal_code_fmt,postal_code_rgx,languages,geonameid,neighbors,equiv_fips_code) from '${WORKPATH}/${TMPPATH}/countryInfo.txt.tmp' null as '';
+\copy alternatename (alternatenameid,geonameid,isoLanguage,alternateName,isPreferredName,isShortName,isColloquial,isHistoric) from '${WORKPATH}/${TMPPATH}/alternateNames.txt' null as '';
 INSERT INTO continentCodes (code,name,geonameid) VALUES ('AF', 'Africa', 6255146);
 INSERT INTO continentCodes (code,name,geonameid) VALUES ('AS', 'Asia', 6255147);
 INSERT INTO continentCodes (code,name,geonameid) VALUES ('EU', 'Europe', 6255148);
@@ -293,7 +286,7 @@ EOT
 
 echo -e "\n+----CREATING INDEXES ON GEONAME IDS (step 5 of 8)---------+\n"
 
-psql -e -U $DBUSER -h $DBHOST -p $DBPORT ${DBNAME} <<EOT
+$PSQL -e ${DBNAME} <<EOT
 CREATE INDEX idx_countryinfo ON countryinfo USING btree (geonameid);
 CREATE INDEX idx_alternatename ON alternatename USING btree (geonameid);
 CREATE INDEX idx_admin1codes ON admin1codes USING btree (geonameid);
@@ -306,16 +299,16 @@ echo -e "\n+----CREATING SPATIAL GEOMETRIES (step 6 of 8)----------+\n"
 
 # Add postgis spatial features to new database
 # Helps to verify topology feature location on disk
-createlang -U $DBUSER plpgsql ${DBNAME} || true
-psql -U $DBUSER -e -d ${DBNAME} -f ${POSTGISPATH}/postgis.sql
-psql -U $DBUSER -e -d ${DBNAME} -f ${POSTGISPATH}/postgis_comments.sql
-psql -U $DBUSER -e -d ${DBNAME} -f ${POSTGISPATH}/spatial_ref_sys.sql
-psql -U $DBUSER -e -d ${DBNAME} -f ${POSTGISPATH}/rtpostgis.sql
-psql -U $DBUSER -e -d ${DBNAME} -f ${POSTGISPATH}/raster_comments.sql
-psql -U $DBUSER -e -d ${DBNAME} -f ${POSTGISPATH}/topology.sql
-psql -U $DBUSER -e -d ${DBNAME} -f ${POSTGISPATH}/topology_comments.sql
+createlang $PGARGS plpgsql ${DBNAME} || true
+$PSQL -d ${DBNAME} -f ${POSTGISPATH}/postgis.sql
+$PSQL -d ${DBNAME} -f ${POSTGISPATH}/postgis_comments.sql
+$PSQL -d ${DBNAME} -f ${POSTGISPATH}/spatial_ref_sys.sql
+$PSQL -d ${DBNAME} -f ${POSTGISPATH}/rtpostgis.sql
+$PSQL -d ${DBNAME} -f ${POSTGISPATH}/raster_comments.sql
+$PSQL -d ${DBNAME} -f ${POSTGISPATH}/topology.sql
+$PSQL -d ${DBNAME} -f ${POSTGISPATH}/topology_comments.sql
 
-psql -e -U $DBUSER -h $DBHOST -p $DBPORT ${DBNAME} <<EOT
+$PSQL -e ${DBNAME} <<EOT
 SELECT AddGeometryColumn ('public','geoname','the_geom',4326,'POINT',2);
 UPDATE geoname SET the_geom = ST_PointFromText('POINT(' || longitude || ' ' || latitude || ')', 4326);
 --UPDATE geoname SET the_geom = ST_SetSRID(ST_Point(longitude,latitude),4326);
@@ -327,7 +320,7 @@ EOT
 
 echo -e "+----INDEX and CLUSTER GEOMETRIES (step 7 of 8)\n"
 
-psql -e -U $DBUSER -h $DBHOST -p $DBPORT ${DBNAME} <<EOT
+$PSQL -e ${DBNAME} <<EOT
 CREATE INDEX idx_geoname ON geoname USING gist(the_geom);
 ALTER TABLE geoname ALTER COLUMN the_geom SET not null;
 CLUSTER idx_geoname ON geoname;
@@ -340,11 +333,11 @@ echo -e "\n\n+----CREATE ROLES and GRANT privileges to those who need READ or WR
 echo -e "+----permissions (step 8 of 8)----------+\n\n"
 echo -e "Skipping\n"
 
-echo 0
+exit 0
 
 echo -e "++++ FIRST create read-only USERS +++\n"
 
-psql -U $DBUSER -e -d ${DBNAME} <<EOT
+$PSQL -e -d ${DBNAME} <<EOT
 ALTER SCHEMA public RENAME TO ${DBNAME};
 CREATE USER ${GEOUSER} WITH login nocreaterole nocreateuser nocreatedb UNENCRYPTED PASSWORD '${GEOPASSWORD}';
 GRANT SELECT ON ALL TABLES IN SCHEMA ${DBNAME} TO ${GEOUSER};
@@ -357,7 +350,7 @@ EOT
 
 echo -e "\n\n+----SECOND create user with WRITE privilges (INSERT, UPDATE, DELETE).\n"
 
-psql -U $DBUSER -e -d ${DBNAME} <<EOT
+$PSQL -e -d ${DBNAME} <<EOT
 CREATE USER ${DEVUSER} WITH login nocreatedb nocreaterole nocreateuser UNENCRYPTED PASSWORD '${DEVPASSWORD}';
 GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA ${DBNAME} TO ${DEVUSER};
 CREATE ROLE ${DEVROLE} INHERIT;
@@ -377,7 +370,7 @@ echo -e "+----to the database developer role -i.e. ${DEVROLE}.\n"
 # owner and just grant all proper read-write permissions with 
 # roles. Leave all functions and triggers owned by SUPERUSER 
 # (i.e. postgres).
-psql -U $DBUSER -e -d ${DBNAME} <<EOT
+$PSQL -e -d ${DBNAME} <<EOT
 ALTER TABLE ${DBNAME}.alternatename OWNER TO ${DEVUSER};
 ALTER TABLE ${DBNAME}.countryinfo OWNER TO ${DEVUSER};
 ALTER TABLE ${DBNAME}.continentcodes OWNER TO ${DEVUSER};
