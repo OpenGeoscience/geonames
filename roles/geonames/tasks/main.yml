@@ -1,43 +1,15 @@
 ---
 
 - name: install dependencies
-  apt: update_cache=yes name={{item}}
-  sudo: yes
-  with_items:
-  - unzip
+  apt: name=unzip
+  become: yes
+  become_user: root
 
-- name: setup postgis
-  command: psql --username=postgres -d geonames -f /usr/share/postgresql/9.3/contrib/postgis-2.2/postgis.sql
+- name: copy script
+  template:
+    src: build_geonames.sh.j2
+    dest: "{{ ansible_user_dir }}"
+    mode: 0755
 
-- name: setup spatial_ref
-  command: psql --username=postgres -d geonames -f /usr/share/postgresql/9.3/contrib/postgis-2.2/spatial_ref_sys.sql
-
-- name: setup postgis_comments
-  command: psql --username=postgres -d geonames -f /usr/share/postgresql/9.3/contrib/postgis-2.2/postgis_comments.sql
-
-- name: download allCountries.zip
-  get_url: url=http://download.geonames.org/export/dump/allCountries.zip dest=/home/vagrant/geonames/allCountries.zip
-
-- name: unzip allCountries.zip
-  unarchive: src=/home/vagrant/geonames/allCountries.zip dest=/home/vagrant/geonames/ creates=/home/vagrant/geonames/allCountries.txt
-
-- name: download alternateNames.zip
-  get_url: url=http://download.geonames.org/export/dump/alternateNames.zip dest=/home/vagrant/geonames/alternateNames.zip
-
-- name: unzip alternateNames.zip
-  unarchive: src=/home/vagrant/geonames/alternateNames.zip dest=/home/vagrant/geonames/ creates=/home/vagrant/geonames/alternateNames.txt
-
-- name: download countryInfo.txt
-  get_url: url=http://download.geonames.org/export/dump/countryInfo.txt dest=/home/vagrant/geonames/countryInfo.txt
-
-- name: remove comments from countryInfo.txt
-  replace: dest=/home/vagrant/geonames/countryInfo.txt regexp='^#.*$' replace=''
-
-- name: remove empty lines from countryInfo.txt
-  lineinfile: dest=/home/vagrant/geonames/countryInfo.txt state=absent regexp='^\s*$'
-
-- name: create tables
-  command: psql -v ON_ERROR_STOP=1 -U postgres -d geonames -f /home/vagrant/geonames/schema.psql
-
-- name: insert data
-  command: psql -v ON_ERROR_STOP=1 -U postgres -d geonames -f /home/vagrant/geonames/insert.psql chdir=/home/vagrant/geonames
+- name: import data
+  command: /bin/bash "{{ ansible_user_dir }}/build_geonames.sh"

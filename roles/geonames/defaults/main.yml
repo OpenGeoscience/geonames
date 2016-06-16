@@ -1,0 +1,1 @@
+geonames_work_path: "{{ ansible_user_dir }}/geonames/work"
